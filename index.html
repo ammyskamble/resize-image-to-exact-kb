@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resize Image to Exact KB — Canvas Demo</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 640px; padding: 0 1rem; }
+  label { display: block; margin: 0.6rem 0 0.2rem; font-size: 0.9rem; }
+  input { width: 7rem; padding: 0.3rem; }
+  button { margin-top: 1rem; padding: 0.5rem 1rem; }
+  #out { margin-top: 1rem; }
+</style>
+</head>
+<body>
+<h1>Resize Image to Exact KB</h1>
+<p>Exact pixels + a KB band, entirely in your browser. Demo of the pipeline behind <a href="https://signresize.in">SignResize</a>.</p>
+
+<label>Image <input type="file" id="file" accept="image/*"></label>
+<label>Width (px) <input type="number" id="w" value="560"></label>
+<label>Height (px) <input type="number" id="h" value="160"></label>
+<label>Min KB <input type="number" id="min" value="20"></label>
+<label>Max KB <input type="number" id="max" value="50"></label>
+<button id="go">Resize &amp; Encode</button>
+<div id="out"></div>
+
+<script>
+async function encodeInBand(canvas, minBytes, maxBytes) {
+  let lo = 0.05, hi = 1.0, best = null;
+  for (let i = 0; i < 7; i++) {
+    const q = (lo + hi) / 2;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
+    if (blob.size > maxBytes) { hi = q; }
+    else if (blob.size < minBytes) { lo = q; best = blob; }
+    else return blob;
+  }
+  return best;
+}
+
+document.getElementById('go').addEventListener('click', async () => {
+  const f = document.getElementById('file').files[0];
+  const out = document.getElementById('out');
+  if (!f) { out.textContent = 'Choose an image first.'; return; }
+  const bmp = await createImageBitmap(f, { imageOrientation: 'from-image' });
+  const c = document.createElement('canvas');
+  c.width = +document.getElementById('w').value;
+  c.height = +document.getElementById('h').value;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await encodeInBand(c, +document.getElementById('min').value * 1024, +document.getElementById('max').value * 1024);
+  const url = URL.createObjectURL(blob);
+  out.innerHTML = 'Result: ' + c.width + '×' + c.height + ' px, ' + (blob.size / 1024).toFixed(2) + ' KB — <a href="' + url + '" download="resized.jpg">Download</a>';
+});
+</script>
+</body>
+</html>
